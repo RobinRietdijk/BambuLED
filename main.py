@@ -1,37 +1,63 @@
-import time
-import json
-import network
-import mqtt
-import neopixel
+import uasyncio as asyncio
+import config
 import machine
+import time
 
-# Load configuration
-with open("config.json") as f:
-    config = json.load(f)
+async def handle_request(reader, writer):
+    request = await reader.read(1024)
+    request = request.decode('utf-8')
 
-# Wi-Fi setup
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-wlan.connect(config["wifi_ssid"], config["wifi_password"])
+    if "GET /" in request:
+        # Serve Config Page
+        response = f"""HTTP/1.1 200 OK\nContent-Type: text/html\n\n
+        <html><body>
+        <h2>ESP32 Configuration</h2>
+        <form action="/config" method="post">
+            <label>SSID:</label> <input name="ssid" value="{config.config_data['WiFi']['ssid']}"><br>
+            <label>Password:</label> <input type="password" name="password" value="{config.config_data['WiFi']['password']}"><br>
+            <button type="submit">Save & Reboot</button>
+        </form>
+        </body></html>"""
+    
+    elif "POST /config" in request:
+        # Extract form data
+        body = request.split("\r\n\r\n")[1]
+        params = {kv.split("=")[0]: kv.split("=")[1] for kv in body.split("&")}
+        
+        ssid = params.get("ssid", "").replace("+", " ")
+        password = params.get("password", "").replace("+", " ")
 
-while not wlan.isconnected():
-    time.sleep(1)
+        # Update global config dictionary
+        config.config_data['WiFi']['ssid'] = ssid
+        config.config_data['WiFi']['password'] = password
+        config.save_config()  # Save changes to file
 
-print("Connected to Wi-Fi")
+        response = "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nWiFi settings saved! Restarting..."
+        
+        await asyncio.sleep(2)
+        machine.reset()  # Restart to apply new settings
 
-# Set up MQTT
-client = mqtt.MQTTClient(
-    client_id=config["mqtt_client_id"],
-    server=config["mqtt_broker"]
-)
+    else:
+        response = "HTTP/1.1 404 Not Found\n\n"
 
-def on_message(topic, msg):
-    print(f"Received: {topic} -> {msg}")
-    # Process LED commands here
+    writer.write(response.encode('utf-8'))
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
 
-client.set_callback(on_message)
-client.connect()
-client.subscribe(config["mqtt_topic"])
+# Start the web server
+async def start_server():
+    server = await asyncio.start_server(handle_request, "0.0.0.0", 80)
+    async with server:
+        await server.serve_forever()
 
+print("Starting Web Config Server...")
+asyncio.run(start_server())
+
+LED = machine.Pin(13, machine.Pin.OUT)
 while True:
-    client.wait_msg()  # Blocking call to handle messages
+    print("Hey")
+    time.sleep(3)
+    LED.value(1)
+    time.sleep(3)
+    LED.value(0)
