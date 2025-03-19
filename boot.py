@@ -1,20 +1,20 @@
 import network
 import time
 import machine
-import config
+import configparser
 
 LED = machine.Pin(13, machine.Pin.OUT)
 LED.value(1)
 
-config.load_config()
+configparser.load_config()
 
 # Connect to WiFi using config credentials
 def connect_to_wifi():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
 
-    ssid = config.Config['WiFi'].get('ssid', None)
-    password = config.Config['WiFi'].get('password', None)
+    ssid = configparser.Config['WiFi'].get('ssid', None)
+    password = configparser.Config['WiFi'].get('password', None)
     if ssid and password:
         print("Connecting to WiFi:", ssid)
         wlan.connect(ssid, password)
