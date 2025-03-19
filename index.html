@@ -1,0 +1,23 @@
+<html>
+<head>
+    <title>ESP32 Configuration</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+    <h2>ESP32 Configuration</h2>
+    <form action="/config" method="post">
+        <label>SSID:</label> <input name="ssid" id="ssid"><br>
+        <label>Password:</label> <input type="password" name="password" id="password"><br>
+        <button type="submit">Save & Reboot</button>
+    </form>
+
+    <script>
+        fetch('/config')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("ssid").value = data.WiFi.ssid;
+                document.getElementById("password").value = data.WiFi.password;
+            });
+    </script>
+</body>
+</html>
